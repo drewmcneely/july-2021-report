@@ -22,6 +22,7 @@ cbars = [5]
 
 Q = sp.linalg.block_diag(*Qs, np.zeros((n_x,n_x)))
 R = sp.linalg.block_diag(*Rs)
+P = sp.linalg.block_diag(Q,R)
 Rcs = [sp.linalg.block_diag(*mats) for mats in Rcss]
 
 def transition(matrices,t,tau):
@@ -64,13 +65,21 @@ Xw = X0 @ G
 U0 = psi
 Uw = psi @ G
 
-def quad(Mw, M0):
-    return Mw@Mw.T + M0@Gamma@Sigma_0@cp.transpose(M0@Gamma) 
+#def quad(Mw, M0):
+#    return Mw@Mw.T + M0@Gamma@Sigma_0@cp.transpose(M0@Gamma) 
+#
+#xterm = cp.trace(quad(Xw, X0)@Q)
+#uterm = cp.trace(quad(Uw, U0)@R)
 
-xterm = cp.trace(quad(Xw, X0)@Q)
-uterm = cp.trace(quad(Uw, U0)@R)
-import pdb; pdb.set_trace()
-performance_index = cp.Minimize(xterm + uterm)
+M = cp.bmat([[Xw, X0],[Uw, U0]])
+EwwT = np.identity(G.shape[1])
+ExxT = Gamma @ Sigma_0 @ Gamma.T
+Sigma = sp.linalg.block_diag(EwwT, ExxT)
+
+weights = np.kron(P, Sigma)
+J = cp.quad_form(cp.vec(M.T), weights)
+
+performance_index = cp.Minimize(J)
 
 input_constraints = [(cp.trace(quad(Uw, U0) @ Rc) <= cbar)
         for (Rc, cbar) in zip(Rcs, cbars)]
